@@ -1,58 +1,70 @@
 name: Build and Release FexFlasher
+
 permissions:
-  contents: write  # Needed to create releases
+  contents: write
 
 on:
   push:
     tags:
-      - "v*"  # Trigger only on version tags like v1.0.0
+      - "v*"
 
 jobs:
-  build:
+  release:
+    name: Build & Release
     runs-on: windows-latest
 
     steps:
-      # 1️⃣ Checkout code
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2️⃣ Setup .NET
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '7.0.x'  # Use your project’s .NET version
+          dotnet-version: '8.0.x'
 
-      # 3️⃣ Cache NuGet packages for faster restore
       - name: Cache NuGet packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: nuget-
 
-      # 4️⃣ Restore dependencies
       - name: Restore dependencies
         run: dotnet restore FexFlasher.csproj
 
-      # 5️⃣ Build project in Release mode
-      - name: Build project
-        run: dotnet build FexFlasher.csproj -c Release --no-restore
+      - name: Publish (Self-Contained Single-File)
+        run: >
+          dotnet publish FexFlasher.csproj
+          -c Release
+          -r win-x64
+          -p:PublishSingleFile=true
+          -p:SelfContained=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o published
 
-      # 6️⃣ Publish project to get .exe
-      - name: Publish project
-        run: dotnet publish FexFlasher.csproj -c Release -o published --no-restore
-
-      # 7️⃣ Create zip including .exe and .fex
-      - name: Create zip with exe and fex
+      - name: Create Release Package
+        shell: pwsh
         run: |
-          $zipPath = "FexFlasher-${{ github.ref_name }}.zip"
-          $itemsToZip = @("published\*", "files\*boot_package.fex")  # Adjust path if .fex is elsewhere
-          Compress-Archive -Path $itemsToZip -DestinationPath $zipPath -Force
+          $version = "${{ github.ref_name }}"
+          $zipName = "FexFlasher-$version-win-x64.zip"
 
-      # 8️⃣ Upload zip to GitHub Release
-      - name: Upload release
-        uses: softprops/action-gh-release@v1
+          New-Item -ItemType Directory -Path "release_pkg\files" -Force
+          Copy-Item "published\FexFlasher.exe" -Destination "release_pkg\"
+          if (Test-Path "files\boot_package.fex") {
+            Copy-Item "files\boot_package.fex" -Destination "release_pkg\files\"
+          }
+          Copy-Item "README.md" -Destination "release_pkg\"
+          Copy-Item "LICENSE" -Destination "release_pkg\"
+
+          Compress-Archive -Path "release_pkg\*" -DestinationPath $zipName -Force
+          Write-Host "Created archive: $zipName"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: FexFlasher-${{ github.ref_name }}.zip
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
+          files: FexFlasher-${{ github.ref_name }}-win-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

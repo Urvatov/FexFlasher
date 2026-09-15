@@ -14,8 +14,15 @@ dotnet publish FexFlasher.csproj `
     -r $Runtime `
     -p:PublishSingleFile=true `
     -p:SelfContained=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
     -o "dist"
 
+# Copy files folder with default fex if present
+if (Test-Path "files") {
+    Copy-Item "files" -Destination "dist\files" -Recurse -Force
+}
+
 Write-Host "`n✅ Build complete!"
-Write-Host "Your single EXE is here: dist\FexFlasher.exe"
+Write-Host "Output folder: dist\"
+Write-Host "Executable:    dist\FexFlasher.exe"

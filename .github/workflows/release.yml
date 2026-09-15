@@ -41,6 +41,7 @@ jobs:
           -p:SelfContained=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
+          --no-restore
           -o published
 
       - name: Create Release Package
